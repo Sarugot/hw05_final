@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from .models import Post, Group, Comment, Follow
+from .models import Post, Group, Follow
 from django.contrib.auth import get_user_model
 from .forms import PostForm, CommentForm
 from django.contrib.auth.decorators import login_required
@@ -9,22 +9,21 @@ User = get_user_model()
 
 
 def index(request):
-    """View функция главной страницы"""
+    """View функция главной страницы."""
     post_list = Post.objects.all()
     page_obj = paginator(post_list, request)
-    index = True
     context = {
         'page_obj': page_obj,
         'text': 'Главная страница',
-        'index': index
+        'index': "index"
     }
     return render(request, 'posts/index.html', context)
 
 
 def group_posts(request, slug):
-    """View функция страницы группы"""
+    """View функция страницы группы."""
     group = get_object_or_404(Group, slug=slug)
-    post_list = Post.objects.filter(group=group)
+    post_list = group.posts.all()
     page_obj = paginator(post_list, request)
     context = {
         'group': group,
@@ -35,16 +34,15 @@ def group_posts(request, slug):
 
 
 def profile(request, username):
-    """View функция страницы профиля пользователя"""
+    """View функция страницы профиля пользователя."""
     author = get_object_or_404(User, username=username)
-    post_list = Post.objects.filter(author=author)
+    post_list = author.posts.all()
     page_obj = paginator(post_list, request)
+    following = False
     if request.user.is_authenticated:
         following = Follow.objects.filter(
             user=request.user, author=author
         ).exists()
-    else:
-        following = False
     context = {
         'author': author,
         'user': author,
@@ -57,17 +55,15 @@ def profile(request, username):
 
 
 def post_detail(request, post_id):
-    """View функция страницы поста по id"""
+    """View функция страницы поста по id."""
     post = get_object_or_404(
         Post.objects.select_related('group', 'author'), id=post_id
     )
-    form = CommentForm(
-        request.POST or None,
-    )
-    comments = Comment.objects.filter(post=post_id)
+    form = CommentForm()
+    comments = post.comments.all()
     context = {
         'post': post,
-        'post_count': Post.objects.filter(author=post.author).count(),
+        'post_count': post.author.posts.count(),
         'form': form,
         'comments': comments,
     }
@@ -76,7 +72,7 @@ def post_detail(request, post_id):
 
 @login_required
 def post_create(request):
-    """View функция формы создания нового поста"""
+    """View функция формы создания нового поста."""
     form = PostForm(
         request.POST or None,
         files=request.FILES or None)
@@ -94,7 +90,7 @@ def post_create(request):
 
 @login_required
 def post_edit(request, post_id):
-    """View функция формы редактирования поста"""
+    """View функция формы редактирования поста."""
     post = get_object_or_404(Post, id=post_id)
     form = PostForm(
         request.POST or None,
@@ -118,6 +114,7 @@ def post_edit(request, post_id):
 
 @login_required
 def add_comment(request, post_id):
+    """View функция создания нового комментария."""
     post = get_object_or_404(Post, id=post_id)
     form = CommentForm(request.POST or None)
     if form.is_valid():
@@ -130,33 +127,31 @@ def add_comment(request, post_id):
 
 @login_required
 def follow_index(request):
-    # информация о текущем пользователе доступна в переменной request.user
+    """View функция страницы подписок."""
     post_list = Post.objects.filter(author__following__user=request.user)
     page_obj = paginator(post_list, request)
-    follow = True
     context = {
         'page_obj': page_obj,
         'text': 'Главная страница',
-        'follow': follow,
+        'follow': 'follow',
     }
     return render(request, 'posts/follow.html', context)
 
 
 @login_required
 def profile_follow(request, username):
-    # Подписаться на автора
+    """View функция создания подписки на автора."""
     author = get_object_or_404(User, username=username)
     user = request.user
-    if author != user and Follow.objects.filter(
-        user=user, author=author
-    ).exists() is False:
+    follow_exists = Follow.objects.filter(user=user, author=author).exists()
+    if author != user and follow_exists is False:
         Follow.objects.create(user=user, author=author)
     return redirect('posts:profile', username)
 
 
 @login_required
 def profile_unfollow(request, username):
-    # Дизлайк, отписка
+    """View функция удаления подписки на автора."""
     author = get_object_or_404(User, username=username)
     user = request.user
     follow = Follow.objects.filter(user=user, author=author)
