@@ -40,9 +40,7 @@ def profile(request, username):
     page_obj = paginator(post_list, request)
     following = False
     if request.user.is_authenticated:
-        following = Follow.objects.filter(
-            user=request.user, author=author
-        ).exists()
+        following = author.following.filter(user=request.user).exists()
     context = {
         'author': author,
         'user': author,
@@ -143,8 +141,8 @@ def profile_follow(request, username):
     """View функция создания подписки на автора."""
     author = get_object_or_404(User, username=username)
     user = request.user
-    follow_exists = Follow.objects.filter(user=user, author=author).exists()
-    if author != user and follow_exists is False:
+    follow_exists = author.following.filter(user=user).exists()
+    if author != user and not follow_exists:
         Follow.objects.create(user=user, author=author)
     return redirect('posts:profile', username)
 
